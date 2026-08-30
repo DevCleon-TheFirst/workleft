@@ -5,6 +5,10 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
+        <link rel="manifest" href="/manifest.json">
+        <meta name="theme-color" content="#6366f1">
+        <link rel="apple-touch-icon" href="/logo.png">
+
         <title inertia>{{ config('app.name', 'Dev Command Center') }}</title>
 
         <!-- Fonts -->
@@ -19,5 +23,17 @@
     </head>
     <body class="antialiased" style="background-color:#0a0a0f; color:#e2e8f0;">
         @inertia
+        
+        <script>
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('/sw.js').then(registration => {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    }).catch(err => {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+                });
+            }
+        </script>
     </body>
 </html>
