@@ -1,0 +1,263 @@
+{
+  "project_title": "OmniPOS: Universal Modular Business Operating System",
+  "executive_summary": "OmniPOS is a universal, modular POS and business operating system designed to serve any organization—retail, hospitality, healthcare, education, or services. Its core differentiator is seamless migration: businesses can switch from legacy systems without starting over, thanks to a robust data import/export engine and a flexible data model. The system is built on a modular monolith architecture using Laravel (PHP) and MySQL, ensuring high performance, security, and scalability. It features strict RBAC, idempotency, rate limiting, and atomic transactions to prevent race conditions. The platform provides a unified dashboard, inventory, CRM, billing, and analytics, all customizable via modules.",
+  "architecture_pattern": "Modular Monolith",
+  "architecture_mermaid": "graph TD\n    A[Client Browser] -->|HTTPS| B[Load Balancer]\n    B --> C[Web Server Nginx]\n    C --> D[Laravel App]\n    D --> E[Module Layer]\n    E --> F[Core Modules]\n    E --> G[Business Modules]\n    F --> H[Auth Service]\n    F --> I[Tenancy Service]\n    F --> J[Import Export Service]\n    G --> K[Inventory Module]\n    G --> L[Sales Module]\n    G --> M[CRM Module]\n    G --> N[Billing Module]\n    G --> O[Analytics Module]\n    D --> P[MySQL Database]\n    D --> Q[Redis Cache]\n    D --> R[Message Queue]\n    R --> S[Background Workers]\n    S --> P\n    C --> T[Static Assets CDN]\n    T --> A",
+  "tech_stack": {
+    "rationale": "Laravel provides a robust, secure, and scalable PHP framework with built-in support for queues, caching, and authentication. MySQL is a reliable, widely-used relational database that supports complex queries and transactions. The modular monolith architecture simplifies deployment and development while allowing future extraction to microservices if needed. This stack ensures rapid development, high performance, and enterprise-grade security.",
+    "frontend": "Vue.js 3 with TypeScript, Tailwind CSS, and Pinia for state management",
+    "backend": "Laravel 11 (PHP 8.2)",
+    "database": "MySQL 8.0",
+    "infrastructure": "Docker containers, Kubernetes for orchestration, AWS RDS for MySQL, Redis for caching, RabbitMQ for message queue, Nginx as reverse proxy"
+  },
+  "erd_mermaid": "erDiagram\n    ORGANIZATION ||--o{ USER : has\n    ORGANIZATION ||--o{ MODULE : subscribes\n    USER ||--o{ ROLE : has\n    ROLE ||--o{ PERMISSION : includes\n    USER ||--o{ SESSION : has\n    ORGANIZATION ||--o{ PRODUCT : owns\n    PRODUCT ||--o{ INVENTORY : has\n    ORGANIZATION ||--o{ CUSTOMER : owns\n    CUSTOMER ||--o{ ORDER : places\n    ORDER ||--o{ ORDER_ITEM : contains\n    ORDER ||--o{ PAYMENT : receives\n    ORGANIZATION ||--o{ INVOICE : issues\n    ORGANIZATION ||--o{ IMPORT_JOB : runs\n    IMPORT_JOB ||--o{ IMPORT_ERROR : logs\n    ORGANIZATION ||--o{ SETTING : has\n    MODULE ||--o{ MODULE_DEPENDENCY : depends\n    MODULE ||--o{ PERMISSION : defines\n    ORGANIZATION ||--o{ API_KEY : has\n    USER ||--o{ AUDIT_LOG : triggers\n    ORGANIZATION ||--o{ AUDIT_LOG : records\n    ORGANIZATION ||--o{ TAX_RATE : applies\n    PRODUCT ||--o{ CATEGORY : belongs\n    CATEGORY ||--o{ ORGANIZATION : has\n    ORDER ||--o{ ORDER_STATUS_HISTORY : tracks\n    PAYMENT ||--o{ PAYMENT_METHOD : uses\n    INVOICE ||--o{ INVOICE_LINE : contains\n    INVOICE ||--o{ TAX : applies\n    CUSTOMER ||--o{ ADDRESS : has\n    ORGANIZATION ||--o{ BRANCH : has\n    BRANCH ||--o{ USER : staffs\n    BRANCH ||--o{ INVENTORY : holds\n    BRANCH ||--o{ ORDER : processes\n    BRANCH ||--o{ SHIFT : opens\n    SHIFT ||--o{ CASH_DRAWER : has\n    CASH_DRAWER ||--o{ TRANSACTION : logs\n    ORGANIZATION ||--o{ CUSTOM_FIELD : defines\n    CUSTOM_FIELD ||--o{ CUSTOM_FIELD_VALUE : stores\n    PRODUCT ||--o{ CUSTOM_FIELD_VALUE : has\n    CUSTOMER ||--o{ CUSTOM_FIELD_VALUE : has\n    ORDER ||--o{ CUSTOM_FIELD_VALUE : has",
+  "db_performance_report": {
+    "n_plus_one_risks": [
+      {
+        "table": "orders",
+        "relationship": "order_items",
+        "fix": "Use eager loading with with('items') when fetching orders."
+      },
+      {
+        "table": "products",
+        "relationship": "inventory",
+        "fix": "Eager load inventory when listing products."
+      },
+      {
+        "table": "customers",
+        "relationship": "orders",
+        "fix": "Eager load orders when showing customer details."
+      },
+      {
+        "table": "organizations",
+        "relationship": "users",
+        "fix": "Eager load users when listing organizations in admin panel."
+      }
+    ],
+    "missing_indexes": [
+      {
+        "table": "orders",
+        "column": "organization_id",
+        "reason": "Filtering orders by organization is common; index speeds up queries."
+      },
+      {
+        "table": "order_items",
+        "column": "order_id",
+        "reason": "Foreign key to orders; index for joins and lookups."
+      },
+      {
+        "table": "products",
+        "column": "organization_id",
+        "reason": "Filtering products by organization."
+      },
+      {
+        "table": "inventory",
+        "column": "product_id",
+        "reason": "Foreign key to products; index for stock lookups."
+      },
+      {
+        "table": "customers",
+        "column": "organization_id",
+        "reason": "Filtering customers by organization."
+      },
+      {
+        "table": "users",
+        "column": "organization_id",
+        "reason": "Filtering users by organization."
+      },
+      {
+        "table": "import_jobs",
+        "column": "organization_id",
+        "reason": "Filtering import jobs by organization."
+      },
+      {
+        "table": "audit_logs",
+        "column": "organization_id",
+        "reason": "Filtering audit logs by organization."
+      },
+      {
+        "table": "sessions",
+        "column": "user_id",
+        "reason": "Lookup sessions by user."
+      }
+    ],
+    "query_budgets": [
+      {
+        "endpoint": "GET /api/v1/orders",
+        "naive_query_count": 100,
+        "budget": 10,
+        "fix": "Eager load items, customer, and payments; use pagination and select only needed columns."
+      },
+      {
+        "endpoint": "GET /api/v1/products",
+        "naive_query_count": 50,
+        "budget": 5,
+        "fix": "Eager load inventory and category; use pagination and caching."
+      },
+      {
+        "endpoint": "GET /api/v1/customers/{id}",
+        "naive_query_count": 20,
+        "budget": 5,
+        "fix": "Eager load orders and addresses; use select to limit fields."
+      },
+      {
+        "endpoint": "GET /api/v1/dashboard",
+        "naive_query_count": 30,
+        "budget": 10,
+        "fix": "Use aggregate queries and caching for dashboard metrics."
+      }
+    ]
+  },
+  "uml_mermaid": "classDiagram\n    class Organization {\n        +int id\n        +string name\n        +string slug\n        +string logo_url\n        +bool is_active\n        +timestamps\n        +users()\n        +modules()\n        +products()\n        +customers()\n        +orders()\n        +settings()\n    }\n    class User {\n        +int id\n        +string name\n        +string email\n        +string password_hash\n        +int organization_id\n        +timestamps\n        +roles()\n        +sessions()\n        +auditLogs()\n    }\n    class Role {\n        +int id\n        +string name\n        +string description\n        +permissions()\n    }\n    class Permission {\n        +int id\n        +string name\n        +string module\n        +string action\n    }\n    class Module {\n        +int id\n        +string name\n        +string version\n        +bool is_active\n        +dependencies()\n        +permissions()\n    }\n    class Product {\n        +int id\n        +string sku\n        +string name\n        +string description\n        +decimal price\n        +int organization_id\n        +int category_id\n        +inventory()\n        +customFieldValues()\n    }\n    class Category {\n        +int id\n        +string name\n        +int organization_id\n    }\n    class Inventory {\n        +int id\n        +int product_id\n        +int branch_id\n        +int quantity\n        +int low_stock_threshold\n    }\n    class Customer {\n        +int id\n        +string name\n        +string email\n        +string phone\n        +int organization_id\n        +orders()\n        +addresses()\n        +customFieldValues()\n    }\n    class Order {\n        +int id\n        +string order_number\n        +int customer_id\n        +int branch_id\n        +decimal total\n        +string status\n        +timestamps\n        +items()\n        +payments()\n        +statusHistory()\n    }\n    class OrderItem {\n        +int id\n        +int order_id\n        +int product_id\n        +int quantity\n        +decimal unit_price\n        +decimal line_total\n    }\n    class Payment {\n        +int id\n        +int order_id\n        +decimal amount\n        +string method\n        +string status\n        +timestamps\n    }\n    class Invoice {\n        +int id\n        +string invoice_number\n        +int organization_id\n        +int customer_id\n        +decimal total\n        +string status\n        +lines()\n        +taxes()\n    }\n    class InvoiceLine {\n        +int id\n        +int invoice_id\n        +string description\n        +decimal amount\n    }\n    class Tax {\n        +int id\n        +string name\n        +decimal rate\n        +int organization_id\n    }\n    class ImportJob {\n        +int id\n        +int organization_id\n        +string type\n        +string status\n        +string file_path\n        +int total_rows\n        +int processed_rows\n        +timestamps\n        +errors()\n    }\n    class ImportError {\n        +int id\n        +int import_job_id\n        +int row_number\n        +string error_message\n    }\n    class Setting {\n        +int id\n        +int organization_id\n        +string key\n        +string value\n    }\n    class AuditLog {\n        +int id\n        +int organization_id\n        +int user_id\n        +string action\n        +string entity_type\n        +int entity_id\n        +json changes\n        +timestamps\n    }\n    class Session {\n        +int id\n        +int user_id\n        +string token\n        +datetime expires_at\n        +string ip_address\n        +string user_agent\n    }\n    class ApiKey {\n        +int id\n        +int organization_id\n        +string name\n        +string key\n        +datetime expires_at\n    }\n    class Branch {\n        +int id\n        +int organization_id\n        +string name\n        +string address\n        +users()\n        +inventory()\n        +orders()\n        +shifts()\n    }\n    class Shift {\n        +int id\n        +int branch_id\n        +int user_id\n        +datetime start_time\n        +datetime end_time\n        +decimal opening_cash\n        +decimal closing_cash\n        +cashDrawer()\n    }\n    class CashDrawer {\n        +int id\n        +int shift_id\n        +decimal expected_amount\n        +decimal actual_amount\n        +transactions()\n    }\n    class Transaction {\n        +int id\n        +int cash_drawer_id\n        +decimal amount\n        +string type\n        +string description\n        +timestamps\n    }\n    class CustomField {\n        +int id\n        +int organization_id\n        +string name\n        +string type\n        +string entity\n    }\n    class CustomFieldValue {\n        +int id\n        +int custom_field_id\n        +int entity_id\n        +string value\n    }\n    Organization \"1\" --> \"0..*\" User\n    Organization \"1\" --> \"0..*\" Module\n    User \"1\" --> \"0..*\" Role\n    Role \"1\" --> \"0..*\" Permission\n    Organization \"1\" --> \"0..*\" Product\n    Product \"1\" --> \"0..*\" Inventory\n    Organization \"1\" --> \"0..*\" Customer\n    Customer \"1\" --> \"0..*\" Order\n    Order \"1\" --> \"0..*\" OrderItem\n    Order \"1\" --> \"0..*\" Payment\n    Organization \"1\" --> \"0..*\" Invoice\n    Invoice \"1\" --> \"0..*\" InvoiceLine\n    Organization \"1\" --> \"0..*\" ImportJob\n    ImportJob \"1\" --> \"0..*\" ImportError\n    Organization \"1\" --> \"0..*\" Setting\n    Module \"1\" --> \"0..*\" Permission\n    Organization \"1\" --> \"0..*\" ApiKey\n    User \"1\" --> \"0..*\" AuditLog\n    Organization \"1\" --> \"0..*\" AuditLog\n    Organization \"1\" --> \"0..*\" TaxRate\n    Product \"1\" --> \"0..*\" Category\n    Category \"1\" --> \"0..*\" Product\n    Order \"1\" --> \"0..*\" OrderStatusHistory\n    Payment \"1\" --> \"0..*\" PaymentMethod\n    Invoice \"1\" --> \"0..*\" Tax\n    Customer \"1\" --> \"0..*\" Address\n    Organization \"1\" --> \"0..*\" Branch\n    Branch \"1\" --> \"0..*\" User\n    Branch \"1\" --> \"0..*\" Inventory\n    Branch \"1\" --> \"0..*\" Order\n    Branch \"1\" --> \"0..*\" Shift\n    Shift \"1\" --> \"0..*\" CashDrawer\n    CashDrawer \"1\" --> \"0..*\" Transaction\n    Organization \"1\" --> \"0..*\" CustomField\n    CustomField \"1\" --> \"0..*\" CustomFieldValue\n    Product \"1\" --> \"0..*\" CustomFieldValue\n    Customer \"1\" --> \"0..*\" CustomFieldValue\n    Order \"1\" --> \"0..*\" CustomFieldValue",
+  "api_contracts": [
+    {
+      "endpoint": "/api/v1/auth/login",
+      "method": "POST",
+      "description": "Authenticate user and return access token.",
+      "auth_required": false,
+      "roles": [],
+      "idempotency": "Not required",
+      "rate_limit": "10 per minute",
+      "request_body": "{\"email\":\"string\",\"password\":\"string\"}",
+      "response": "{\"access_token\":\"string\",\"token_type\":\"Bearer\",\"expires_in\":3600}"
+    },
+    {
+      "endpoint": "/api/v1/organizations",
+      "method": "POST",
+      "description": "Create a new organization (tenant).",
+      "auth_required": true,
+      "roles": ["super_admin"],
+      "idempotency": "Idempotency-Key header",
+      "rate_limit": "5 per minute",
+      "request_body": "{\"name\":\"string\",\"slug\":\"string\",\"logo_url\":\"string\"}",
+      "response": "{\"id\":1,\"name\":\"string\",\"slug\":\"string\",\"created_at\":\"timestamp\"}"
+    },
+    {
+      "endpoint": "/api/v1/products",
+      "method": "POST",
+      "description": "Create a new product.",
+      "auth_required": true,
+      "roles": ["admin", "manager"],
+      "idempotency": "Idempotency-Key header",
+      "rate_limit": "30 per minute",
+      "request_body": "{\"sku\":\"string\",\"name\":\"string\",\"description\":\"string\",\"price\":\"decimal\",\"category_id\":\"int\"}",
+      "response": "{\"id\":1,\"sku\":\"string\",\"name\":\"string\",\"price\":\"decimal\",\"created_at\":\"timestamp\"}"
+    },
+    {
+      "endpoint": "/api/v1/orders",
+      "method": "POST",
+      "description": "Create a new order.",
+      "auth_required": true,
+      "roles": ["cashier", "admin", "manager"],
+      "idempotency": "Idempotency-Key header",
+      "rate_limit": "30 per minute",
+      "request_body": "{\"customer_id\":\"int\",\"branch_id\":\"int\",\"items\":[{\"product_id\":\"int\",\"quantity\":\"int\"}],\"payments\":[{\"method\":\"string\",\"amount\":\"decimal\"}]}",
+      "response": "{\"id\":1,\"order_number\":\"string\",\"total\":\"decimal\",\"status\":\"pending\",\"created_at\":\"timestamp\"}"
+    },
+    {
+      "endpoint": "/api/v1/imports",
+      "method": "POST",
+      "description": "Start an import job for data migration.",
+      "auth_required": true,
+      "roles": ["admin"],
+      "idempotency": "Idempotency-Key header",
+      "rate_limit": "2 per minute",
+      "request_body": "{\"type\":\"products\",\"file\":\"binary\"}",
+      "response": "{\"import_job_id\":1,\"status\":\"queued\"}"
+    },
+    {
+      "endpoint": "/api/v1/imports/{id}/status",
+      "method": "GET",
+      "description": "Get status of an import job.",
+      "auth_required": true,
+      "roles": ["admin"],
+      "idempotency": "Not required",
+      "rate_limit": "60 per minute",
+      "request_body": "None",
+      "response": "{\"id\":1,\"status\":\"processing\",\"total_rows\":100,\"processed_rows\":45,\"errors\":[]}"
+    }
+  ],
+  "security_report": {
+    "critical": [
+      {
+        "category": "Authentication",
+        "description": "Weak password hashing or missing multi-factor authentication could lead to account takeover.",
+        "impact": "Unauthorized access to sensitive business data and financial transactions.",
+        "mitigation": "Use bcrypt or Argon2 for password hashing, enforce strong password policies, and implement MFA for admin roles."
+      },
+      {
+        "category": "Authorization",
+        "description": "Insufficient role-based access control could allow users to access unauthorized modules or data.",
+        "impact": "Data breach, privilege escalation, and compliance violations.",
+        "mitigation": "Implement strict RBAC with least privilege principle, validate permissions on every request, and use middleware for route protection."
+      },
+      {
+        "category": "Data Integrity",
+        "description": "Lack of idempotency on mutation endpoints could lead to duplicate orders or payments.",
+        "impact": "Financial loss, incorrect inventory, and customer dissatisfaction.",
+        "mitigation": "Require Idempotency-Key header on all POST/PUT endpoints, store keys in a unique index, and use database transactions to ensure atomicity."
+      }
+    ],
+    "high": [
+      {
+        "category": "Injection",
+        "description": "SQL injection or XSS vulnerabilities could compromise data.",
+        "impact": "Data theft, data loss, and system compromise.",
+        "mitigation": "Use Laravel's Eloquent ORM with parameter binding, sanitize user input, and implement Content Security Policy headers."
+      },
+      {
+        "category": "Rate Limiting",
+        "description": "Missing rate limiting on API endpoints could allow brute-force attacks or DoS.",
+        "impact": "Service disruption and unauthorized access.",
+        "mitigation": "Apply rate limiting middleware on all API routes, especially auth and import endpoints."
+      },
+      {
+        "category": "Race Conditions",
+        "description": "Concurrent requests could cause overselling of inventory or double payment.",
+        "impact": "Financial loss and inventory inaccuracies.",
+        "mitigation": "Use database transactions with row-level locking (SELECT FOR UPDATE) for inventory updates and payment processing."
+      }
+    ],
+    "medium": [
+      {
+        "category": "Data Exposure",
+        "description": "Sensitive data in logs or error messages could be exposed.",
+        "impact": "Information leakage.",
+        "mitigation": "Log only necessary information, mask sensitive fields, and use environment-specific error reporting."
+      },
+      {
+        "category": "File Upload",
+        "description": "Malicious file uploads could lead to remote code execution.",
+        "impact": "System compromise.",
+        "mitigation": "Validate file types, scan for malware, store files outside web root, and use random file names."
+      }
+    ]
+  },
+  "future_features": [
+    {
+      "title": "AI-Powered Analytics",
+      "description": "Integrate machine learning models to provide predictive sales forecasting, customer churn prediction, and inventory optimization.",
+      "business_value": "Enables data-driven decisions, reduces waste, and increases revenue."
+    },
+    {
+      "title": "Offline Mode",
+      "description": "Allow POS operations to continue offline and sync when connectivity is restored.",
+      "business_value": "Ensures business continuity in areas with unreliable internet, increasing reliability."
+    },
+    {
+      "title": "Multi-Currency and Multi-Language",
+      "description": "Support for multiple currencies and languages to cater to global organizations.",
+      "business_value": "Expands market reach and improves user experience for international clients."
+    },
+    {
+      "title": "Advanced Reporting and BI",
+      "description": "Customizable dashboards and report builder with export options.",
+      "business_value": "Empowers managers with actionable insights and simplifies compliance reporting."
+    },
+    {
+      "title": "Marketplace for Modules",
+      "description": "Allow third-party developers to create and sell modules.",
+      "business_value": "Creates an ecosystem, increases platform value, and generates additional revenue."
+    }
+  ]
+}
