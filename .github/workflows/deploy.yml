@@ -1,0 +1,58 @@
+name: Deploy to cPanel via FTP
+
+on:
+  push:
+    branches:
+      - main # Change this if your main branch has a different name
+
+jobs:
+  web-deploy:
+    name: 🎉 Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🚚 Get latest code
+        uses: actions/checkout@v4
+
+      - name: 🛠️ Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2' # Adjust to your PHP version
+          
+      - name: 📦 Install Composer Dependencies
+        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: 🛠️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Adjust to your Node version
+
+      - name: 📦 Install NPM Dependencies & Build Assets
+        run: |
+          npm install
+          npm run build
+
+      - name: 📂 Sync files to cPanel
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftp
+          port: 21
+          # The remote directory on your cPanel server. 
+          # Because you are creating a dedicated FTP account for this app, 
+          # the FTP user will be locked into that directory automatically.
+          server-dir: /
+          # Exclude files/folders you don't want to upload to the server
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/tests/**
+            **/.env
+            **/storage/framework/cache/**
+            **/storage/framework/sessions/**
+            **/storage/framework/views/**
+            **/storage/logs/**
+            **/phpunit.xml
+            **/README.md
